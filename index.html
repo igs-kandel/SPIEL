@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Glücksrad – Option A oder B</title>
+<style>
+  :root{
+    --black:#050505; --blue:#bdd6ee; --red:#ff0808; --green:#c7e2b6; --gold:#ffd54f;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family: Georgia, 'Times New Roman', serif; background:linear-gradient(135deg,#f7fbff,#fff8e1);
+    color:#111; min-height:100vh;
+  }
+  header{
+    position:sticky; top:0; z-index:10; background:#111; color:white; padding:12px 18px;
+    display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 16px #0004;
+  }
+  .konto{font-size:clamp(22px,4vw,42px); font-weight:900}.konto span{color:var(--gold)}
+  .modus{font-size:clamp(14px,2vw,22px)}
+  main{max-width:1100px;margin:0 auto;padding:24px}
+  h1{text-align:center;font-size:clamp(36px,7vw,78px);margin:16px 0 8px;text-decoration:underline}
+  .intro{text-align:center;font-size:clamp(18px,2.4vw,28px);font-weight:700;margin-bottom:20px}
+  .options{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px;margin-top:20px}
+  .card{background:white;border:3px solid #111;border-radius:16px;overflow:hidden;box-shadow:0 8px 22px #0002;cursor:pointer;transition:.2s transform,.2s box-shadow}
+  .card:hover{transform:translateY(-5px);box-shadow:0 14px 30px #0003}.card.selected{outline:7px solid var(--gold)}
+  .card h2{font-size:clamp(40px,6vw,70px);margin:14px 24px 0;text-decoration:underline}
+  .einsatz{text-align:center;font-size:34px;font-weight:900;margin:18px}.label{font-size:34px;font-weight:900;margin:18px}
+  .row{display:flex;justify-content:space-between;align-items:center;min-height:82px;padding:14px 28px;font-size:clamp(28px,4vw,48px);font-weight:900}.row.black{background:#000;color:#fff}.row.blue{background:var(--blue)}.row.red{background:var(--red)}.row.green{background:var(--green)}
+  #game{display:none;text-align:center}.topActions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:14px 0 24px}
+  button{font-family:inherit;border:none;border-radius:14px;padding:14px 24px;font-size:clamp(20px,2.8vw,30px);font-weight:900;cursor:pointer;box-shadow:0 5px 0 #0005;transition:.1s}
+  button:active{transform:translateY(4px);box-shadow:0 1px 0 #0005}button:disabled{opacity:.55;cursor:not-allowed}
+  .play{background:#2ecc71;color:#06240f}.back{background:#ffe082}.reset{background:#efefef}
+  .wheelWrap{position:relative;width:min(78vw,480px);height:min(78vw,480px);margin:0 auto 18px}
+  canvas{width:100%;height:100%;filter:drop-shadow(0 8px 12px #0005)}
+  .pointer{position:absolute;top:-14px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:24px solid transparent;border-right:24px solid transparent;border-top:54px solid #111;z-index:2}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:20px;font-weight:700}.pill{padding:8px 12px;border:2px solid #111;border-radius:999px;background:white}.dot{display:inline-block;width:18px;height:18px;border:1px solid #111;vertical-align:-3px;margin-right:6px}
+  .modal{position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:50;padding:20px}.modalBox{background:white;border:5px solid #111;border-radius:20px;max-width:560px;width:100%;text-align:center;padding:28px;box-shadow:0 0 40px #0008;position:relative;overflow:hidden}.modalBox h2{font-size:clamp(34px,6vw,64px);margin:10px 0}.modalBox p{font-size:clamp(24px,4vw,42px);font-weight:900;margin:12px 0}.close{background:#111;color:white;margin-top:12px}
+  .confetti{position:absolute;width:10px;height:16px;top:-20px;animation:fall 1.6s linear forwards}@keyframes fall{to{transform:translateY(650px) rotate(720deg);opacity:.2}}
+  .hint{text-align:center;font-size:18px;margin-top:12px}
+</style>
+</head>
+<body>
+<header><div class="konto">Kontostand: <span id="balance">100,00 €</span></div><div class="modus" id="modeText">Bitte Option wählen</div></header>
+<main>
+<section id="selection">
+  <h1>Glücksrad-Spiel</h1>
+  <div class="intro">Wähle zuerst Option A oder Option B. Einsatz pro Spiel: 2 €.</div>
+  <div class="options" id="optionCards"></div>
+</section>
+<section id="game">
+  <h1 id="gameTitle">Option</h1>
+  <div class="topActions"><button class="play" id="playBtn">🎡 Spielen (−2 €)</button></div>
+  <div class="wheelWrap"><div class="pointer"></div><canvas id="wheel" width="900" height="900"></canvas></div>
+  <div class="legend" id="legend"></div>
+  <div class="hint">Nach dem Klick werden zuerst 2 € abgezogen, danach dreht sich das Rad und der Gewinn wird gutgeschrieben.</div>
+</section>
+</main>
+<div class="modal" id="modal"><div class="modalBox" id="modalBox"><h2 id="resultTitle"></h2><p id="resultText"></p><p id="newBalance"></p><button class="close" id="closeBtn">Schließen</button></div></div>
+<script>
+const options={A:{title:'Option A', prizes:{haupt:10, klein:4, trost:1, niete:0}},B:{title:'Option B', prizes:{haupt:27, klein:3, trost:0.5, niete:0}}};
+const segments=[{key:'haupt',label:'Hauptpreis',prob:.05,color:'#000',text:'#fff'},{key:'klein',label:'Kleiner Preis',prob:.15,color:'#bdd6ee',text:'#000'},{key:'trost',label:'Trostpreis',prob:.40,color:'#ff0808',text:'#000'},{key:'niete',label:'Niete',prob:.40,color:'#c7e2b6',text:'#000'}];
+let balance=100, chosen=null, spinning=false, rotation=0;
+const fmt=v=>v.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+function updateBalance(){document.getElementById('balance').textContent=fmt(balance)}
+function money(v){return Number.isInteger(v)?v+' €':String(v).replace('.',',')+' €'}
+function buildOptions(){const wrap=document.getElementById('optionCards');wrap.innerHTML='';Object.entries(options).forEach(([id,opt])=>{const c=document.createElement('div');c.className='card';c.innerHTML=`<h2>${opt.title}</h2><div class="einsatz">2 € Einsatz</div><div class="label">Auszahlungsübersicht:</div><div class="row black"><span>Hauptpreis</span><span>${money(opt.prizes.haupt)}</span></div><div class="row blue"><span>Kleiner Preis</span><span>${money(opt.prizes.klein)}</span></div><div class="row red"><span>Trostpreis</span><span>${money(opt.prizes.trost)}</span></div><div class="row green"><span>Niete</span><span>${money(opt.prizes.niete)}</span></div>`;c.onclick=()=>choose(id);wrap.appendChild(c);});}
+function choose(id){chosen=id;document.getElementById('selection').style.display='none';document.getElementById('game').style.display='block';document.getElementById('gameTitle').textContent=options[id].title;document.getElementById('modeText').textContent=options[id].title+' gewählt';updateLegend();drawWheel();}
+function updateLegend(){const legend=document.getElementById('legend');if(!chosen){legend.innerHTML='';return;}legend.innerHTML=segments.map(s=>`<span class="pill"><span class="dot" style="background:${s.color}"></span>${s.label}: ${Math.round(s.prob*100)}% · Auszahlung: ${money(options[chosen].prizes[s.key])}</span>`).join('');}
+function drawWheel(rot=rotation){const cv=document.getElementById('wheel'),ctx=cv.getContext('2d'),cx=450,cy=450,r=405;ctx.clearRect(0,0,900,900);let a=rot-Math.PI/2;segments.forEach(s=>{const span=s.prob*2*Math.PI;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,a+span);ctx.closePath();ctx.fillStyle=s.color;ctx.fill();ctx.lineWidth=7;ctx.strokeStyle='#111';ctx.stroke();ctx.save();ctx.translate(cx,cy);ctx.rotate(a+span/2);ctx.textAlign='center';ctx.fillStyle=s.text;ctx.font='bold 42px Georgia';ctx.fillText(s.label,r*0.58,0);ctx.restore();a+=span;});ctx.beginPath();ctx.arc(cx,cy,70,0,2*Math.PI);ctx.fillStyle='#fff';ctx.fill();ctx.lineWidth=7;ctx.strokeStyle='#111';ctx.stroke();ctx.fillStyle='#111';ctx.font='bold 34px Georgia';ctx.textAlign='center';ctx.fillText('START',cx,cy+12);}
+function pick(){const x=Math.random();let acc=0;for(const s of segments){acc+=s.prob;if(x<acc)return s}return segments[3]}
+function randomSafeAngleInSegment(key){
+  // Zufälliger Zielpunkt INNERHALB des gezogenen Feldes.
+  // Dadurch bleibt das Rad nie genau auf einer Trennlinie zwischen zwei Feldern stehen.
+  let start=-Math.PI/2;
+  for(const s of segments){
+    const span=s.prob*2*Math.PI;
+    if(s.key===key){
+      const margin=span*0.24; // Sicherheitsabstand zu beiden Rändern
+      return start+margin+Math.random()*(span-2*margin);
+    }
+    start+=span;
+  }
+  return -Math.PI/2;
+}
+function normalizeAngle(a){
+  const full=Math.PI*2;
+  return ((a%full)+full)%full;
+}
+function spin(){
+  if(spinning||!chosen)return;
+  if(balance<2){showModal('Zu wenig Geld','Du brauchst mindestens 2 € Einsatz.',0,false);return}
+  spinning=true;
+  document.getElementById('playBtn').disabled=true;
+  balance-=2;
+  updateBalance();
+
+  const res=pick(), prize=options[chosen].prizes[res.key];
+  const target=randomSafeAngleInSegment(res.key);
+
+  // Die Nadel steht oben bei -90°. Damit das gezogene Feld unter der Nadel landet,
+  // muss gelten: target + rotation = -90° (mod 360°).
+  // Wichtig: Die bisherige Drehposition wird einbezogen. Genau das verhinderte vorher
+  // die Übereinstimmung zwischen sichtbarem Rad und Pop-up.
+  const pointerAngle=-Math.PI/2;
+  const desiredRotation=normalizeAngle(pointerAngle-target);
+  const currentRotation=normalizeAngle(rotation);
+  let delta=normalizeAngle(desiredRotation-currentRotation);
+  // Jedes Spiel bekommt unterschiedlich viele Umdrehungen UND eine andere Dauer.
+  // So wirkt der Dreh immer etwas anders: mal kürzer, mal länger.
+  const extraTurns=4+Math.floor(Math.random()*7); // 4 bis 10 volle Umdrehungen
+  delta+=Math.PI*2*extraTurns;
+
+  const start=rotation,dur=2600+Math.random()*3200,t0=performance.now();
+  function anim(t){
+    const p=Math.min((t-t0)/dur,1),ease=1-Math.pow(1-p,4);
+    rotation=start+delta*ease;
+    drawWheel(rotation);
+    if(p<1)requestAnimationFrame(anim);
+    else{
+      rotation=desiredRotation;
+      drawWheel(rotation);
+      balance+=prize;
+      updateBalance();
+      spinning=false;
+      document.getElementById('playBtn').disabled=false;
+      showModal(res.label,`Gewinn: ${money(prize)}`,prize,true);
+    }
+  }
+  requestAnimationFrame(anim);
+}
+function showModal(title,text,prize,confetti){document.getElementById('resultTitle').textContent=title;document.getElementById('resultText').textContent=text;document.getElementById('newBalance').textContent='Neuer Kontostand: '+fmt(balance);const modal=document.getElementById('modal'),box=document.getElementById('modalBox');box.querySelectorAll('.confetti').forEach(e=>e.remove());if(confetti&&prize>0){for(let i=0;i<90;i++){const e=document.createElement('i');e.className='confetti';e.style.left=Math.random()*100+'%';e.style.background=['#ff1744','#ffd600','#00e676','#2979ff','#ff9100'][i%5];e.style.animationDelay=Math.random()*0.7+'s';box.appendChild(e);}}modal.style.display='flex';}
+document.getElementById('playBtn').onclick=spin;document.getElementById('closeBtn').onclick=()=>document.getElementById('modal').style.display='none';document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')e.currentTarget.style.display='none'};
+buildOptions();updateBalance();drawWheel();
+</script>
+</body>
+</html>
